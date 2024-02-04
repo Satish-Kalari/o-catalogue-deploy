@@ -3,62 +3,70 @@ pipeline {
         node {
             label 'AGENT-1'
         }
-    } 
-
-    // Just like variables 
-    // environment {
+    }
+    // environment { 
     //     packageVersion = ''
-    //     nexusURL = '<place nexsus ec2 instance public ip adddress here>:8081'        
+    //     nexusURL = '172.31.5.95:8081'
     // }
-    
-    // Terminating Build if it takes certain time
-     options {
-        ansiColor("xterm")
+    options {
         timeout(time: 1, unit: 'HOURS')
-        // dose not allow two pipleline builds at a time 
-        disableConcurrentBuilds() 
+        disableConcurrentBuilds()
+        ansiColor('xterm')
     }
-    
     parameters {
-        string(name: 'version', defaultValue: '1.0.0', description: 'What is the artifact version?') 
-        string(name: 'environment', defaultValue: 'dev', description: 'What is the environment?')       
+        string(name: 'version', defaultValue: '', description: 'What is the artifact version?')
+        string(name: 'environment', defaultValue: 'dev', description: 'What is environment?')
     }
-    
-    // BUILD
+    // build
     stages {
-        stage('Print Version') {
+        stage('Print version') {
             steps {
                 sh """
                     echo "version: ${params.version}"
-                    echo "version: ${params.environment}"
+                    echo "environment: ${params.environment}"
                 """
             }
         }
-        stage('Deploy') {
-            steps {
-                script {
-                        def params = [
-                            string(name: 'version', value: "$packageVersion"),
-                            string(name: 'environment', value: "dev")
-                        ]
-                        build job: "catalogue-deploy", wait: true, parameters: params
-                    }
-            }
-        }              
-    }
 
-    // POST BUILD
+        stage('Init') {
+            steps {
+                sh """
+                    cd terraform
+                    terraform init --backend-config=${params.environment}/backend.tf -reconfigure
+                """
+            }
+        }
+
+        stage('Plan') {
+            steps {
+                sh """
+                    cd terraform
+                    terraform plan -var-file=${params.environment}/${params.environment}.tfvars -var="app_version=${params.version}"
+                """
+            }
+        }
+
+        stage('Apply') {
+            steps {
+                sh """
+                    cd terraform
+                    terraform apply -var-file=${params.environment}/${params.environment}.tfvars -var="app_version=${params.version}" -auto-approve
+                """
+            }
+        }
+        
+    }
+    // post build
     post { 
         always { 
             echo 'I will always say Hello again!'
-            // This will remove pipleline log files
-            deleteDir() 
+            deleteDir()
         }
-         failure { 
-            echo 'This runs when pipeline is failed, used set alert'
+        failure { 
+            echo 'this runs when pipeline is failed, used generally to send some alerts'
         }
-         success { 
-            echo 'This runs when pipeline is SUCCESS'
+        success{
+            echo 'I will say Hello when pipeline is success'
         }
     }
 }

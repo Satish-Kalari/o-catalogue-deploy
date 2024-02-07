@@ -23,3 +23,8 @@ variable "tags" {
         Component = "catalogue"
     }  
 }
+
+variable "app_version" {
+    
+  
+}
